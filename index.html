@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <title>ELS Interpreter</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+    }
+    #output {
+      margin: 20px;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<div id="output"></div>
+
+<script>
+function printOutput(html) {
+  const output = document.getElementById("output");
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = html;
+  output.appendChild(wrapper);
+}
+
+function showError(msg) {
+  printOutput(`<div class="error">Xəta: ${msg}</div>`);
+}
+
+function tokenize(code) {
+  return code
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith("//"));
+}
+
+function parse(tokens) {
+  return tokens.map(token => {
+    const [command, ...rest] = token.split(/\s+/);
+    const args = rest.join(" ").split(",").map(arg => {
+      arg = arg.trim();
+      if (arg.startsWith('"') && arg.endsWith('"')) return arg.slice(1, -1);
+      if (!isNaN(arg)) return parseInt(arg);
+      return arg;
+    });
+    return { type: command, args };
+  });
+}
+
+function run(ast) {
+  for (const node of ast) {
+    try {
+      switch (node.type) {
+        case "bgcolor":
+          if (node.args.length < 1) throw "bgcolor üçün rəng göstərilməlidir.";
+          document.body.style.backgroundColor = node.args[0];
+          break;
+
+        case "bgimage":
+          if (node.args.length < 1) throw "bgimage üçün URL göstərilməlidir.";
+          document.body.style.backgroundImage = `url('${node.args[0]}')`;
+          break;
+
+        case "audio":
+          if (node.args.length < 1) throw "audio üçün ən azı 1 argument lazımdır.";
+          const audio = document.createElement("audio");
+          audio.src = node.args[0];
+          audio.controls = true;
+          if (String(node.args[1]).toLowerCase() === "true") {
+            audio.autoplay = true;
+          }
+          printOutput(audio.outerHTML);
+          break;
+
+        case "image":
+          if (node.args.length < 3) throw "image üçün 3 və ya 4 argument lazımdır.";
+          const img = document.createElement("img");
+          img.src = node.args[0];
+          img.width = parseInt(node.args[1]) || 100;
+          img.height = parseInt(node.args[2]) || 100;
+          if (node.args[3]) {
+            const link = document.createElement("a");
+            link.href = node.args[3];
+            link.target = "_blank";
+            link.appendChild(img);
+            printOutput(link.outerHTML);
+          } else {
+            printOutput(img.outerHTML);
+          }
+          break;
+
+        case "textbox":
+          if (node.args.length < 3) throw "textbox üçün 3 argument lazımdır.";
+          const input = document.createElement("input");
+          input.type = "text";
+          input.name = node.args[0];
+          input.style.width = `${parseInt(node.args[1]) || 150}px`;
+          input.style.height = `${parseInt(node.args[2]) || 30}px`;
+          printOutput(input.outerHTML);
+          break;
+
+        case "button":
+          if (node.args.length < 5) throw "button üçün 5 argument lazımdır.";
+          const btn = document.createElement("button");
+          btn.textContent = node.args[0];
+          btn.onclick = () => window.open(node.args[1], "_blank");
+          btn.style.backgroundColor = node.args[2];
+          btn.style.width = `${parseInt(node.args[3]) || 100}px`;
+          btn.style.height = `${parseInt(node.args[4]) || 40}px`;
+          printOutput(btn.outerHTML);
+          break;
+
+        default:
+          throw `Naməlum əmr: ${node.type}`;
+      }
+    } catch (err) {
+      showError(err);
+    }
+  }
+}
+
+// ELS faylını yükləyir və çalışdırır
+fetch("main.els")
+  .then(res => res.text())
+  .then(code => {
+    const tokens = tokenize(code);
+    const ast = parse(tokens);
+    run(ast);
+  })
+  .catch(err => showError(err.message || err));
+</script>
+
+</body>
+</html>
